@@ -398,7 +398,7 @@ function init() {
     o = texts([
       'What methods I use?',
 
-      'It depends of the case.',
+      'It depends on the case.',
 
       'For new products I love to use paper prototyping first. It is fast,\n'+
       'it is cheap. Then I like to continue with HTML+javascript prototyping.\n'+
