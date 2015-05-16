@@ -489,7 +489,7 @@ function init() {
 
       'The background images, or unique background textures, are from\n'+
       'research project I was involved in my early career. I find them\n'+
-      'attractive and I found that in Australia people like to see colourful CVs',
+      'attractive and I found that Australian people like to see colourful things.',
 
       'I use pixi.js as a platform because it is just mind blowing\n'+
       'fast. And by using that I make a statement for the speed. I think\n'+
@@ -585,10 +585,8 @@ function init() {
       scene.scale.y = scale;
     }
      
-    if (w > 800)
-      scene.position.x = (w - (800*scale))/2;
-    if (h > 600)
-      scene.position.y = (h - (600*scale))/2;
+    scene.position.x = (w - (800*scale))/2;
+    scene.position.y = (h - (600*scale))/2;
     
     renderer.old_render(scene);
   };
