@@ -24,87 +24,8 @@ window.WebFontConfig = {
 })();
 
 
-/*
- 
- render object delegates to time
- time
-   takes right time object
-   if current old remove it.
-   calculate phase [0..1]
-   let anim render
- */
 
-
-
-
-// single timeline for all animations.
-// collection of anim objects
-function Time() {
-  // time in millis of anim
-  var curr = 0;
-  var total = 0;
-
-  // time in millis of last known realtime
-  var known_time = 0;
-
-  var anims = [];
-  var last_anim = undefined;
-
-  var self = {
-    add: function(anim) {
-      anims.push(anim);
-      total += anim.total();
-    },
-    render: function(renderer) {
-      var t1 = Date.now();
-      var t0 = known_time;
-      known_time = t1;
-      var dt = t1-t0;
-      if (dt > 500) dt = 0;
-      curr += dt;
-      
-      // find correct anim
-      var len = anims.length;
-      var t = total;
-      while(--len >= 0) {
-        var a = anims[len]
-        if ((total - a.total()) <= t && t <= total) {
-          if (last_anim !== undefined && last_anim !== a)
-            last_anim.out();
-          last_anim = a;
-          
-          // calculate phase
-          t -= a.total();
-          var phase = (curr - t)/a.total();
-          
-          
-          a.render(renderer, phase);
-          break;
-        } else {
-          t -= a.total();
-        }
-      }
-      
-    }
-  };
-  return self;
-}
-
-
-function Anim(time, funcs) {
-  var self = {
-    leave: function(stage) {
-    },
-    enter: function(stage) {
-    },
-    total: function() { return time; }
-  }
-  for (i in funcs) {
-    if (funcs.hasOwnProperty(i)) {
-      self[i] = funcs[i];
-    }
-  }
-  return self;
+function Anim() {
 }
 Anim.linear = function(x, t) { return x; }
 Anim.pow2 = function(x, t) { return x*x; }
@@ -202,8 +123,14 @@ function Timer(top_anim){
   var time_stack = [];
 
   var self = {
+    time: top_anim.time,
     curr: 0, // position of relative time in seconds
     tick: function(){
+      if (self.next_curr !== undefined) {
+        self.curr = self.next_curr;
+        self.next_curr = undefined;
+      }
+
       var t1 = Date.now();
       var t0 = known_time;
       known_time = t1;
@@ -211,7 +138,18 @@ function Timer(top_anim){
       if (dt > 0.5) dt = 0;
       self.curr += dt;
       
-//if (top_anim.time < self.curr) self.curr = 0;
+      if (top_anim.time < self.curr) self.curr = self.time - 0.001;
+    },
+    real_curr: function() {
+      var ret = self.curr;
+      var len = time_stack.length;
+      while (--len >= 0) {
+        ret += time_stack[len];
+      }
+      return ret; 
+    },
+    set_next_curr: function(value) {
+      self.next_curr = value;
     },
     push: function(time){
       time_stack.push(time);
@@ -232,21 +170,77 @@ function init() {
   var headerfont = { font: 'normal 60px Fjalla One', fill: '#000000', align: 'left', stroke: '#000000', strokeThickness: 1 };
   var linefont = { font: 'normal 24px Marvel', fill: '#000000', align: 'left', stroke: '#000000', strokeThickness: 0.9 };
 
+  // i need to make this global because of different scenes..
+  var drag_state = {
+    data: null,
+    dragging: false,
+    x: 0,
+  };
+
+  function timeline() {
+    // timeline
+    var graphics = new PIXI.Graphics();
+    graphics.beginFill(0x999999);
+    graphics.lineStyle(1, 0x333333, 1);
+  
+    // draw a shape
+    graphics.moveTo(0,0);
+    graphics.lineTo(30, 0);
+    graphics.lineTo(30, 35);
+    graphics.lineTo(0, 35);
+    graphics.endFill();
+    graphics.alpha = 0.55;
+
+    graphics.interactive = true;
+    graphics.buttonMode = true;
+
+    graphics.mousedown = graphics.touchstart = function(event)
+		{
+			drag_state.data = event.data;
+			drag_state.dragging = true;
+		};
+
+    graphics.mouseup = graphics.mouseupoutside = graphics.touchend = graphics.touchendoutside = function(data)
+		{
+			drag_state.dragging = false;
+			drag_state.data = null;
+		};
+    graphics.mousemove = graphics.touchmove = function()
+		{
+			if(drag_state.dragging)
+			{
+				var newPosition = drag_state.data.getLocalPosition(this.parent);
+        drag_state.x = newPosition.x;
+				this.position.x = newPosition.x;
+				this.position.y = newPosition.y;
+			}
+		}
+
+    return graphics;
+  }
+
+
+
   function texts(arr) {
     var names = ['header','t0','t1','t2','t3','t4','t5','t6'];
     var fonts = [headerfont, linefont, linefont, linefont, linefont, linefont];
     var margins = [50, 30,30,30,30,20];
     ret = {
       paper: new Paper(),
+      stage: new PIXI.Container(),
       scene: new PIXI.Container(),
     };
-    ret.anim = new Parallel(ret.scene),
+    ret.anim = new Parallel(ret.stage),
+    ret.stage.addChild(ret.scene);
+    ret.stage.addChild(timeline());
+
+
     ret.scene.addChild(ret.paper);
 
     var y = 0, delay = 0;
     for (idx in arr) {
       var text = arr[idx];
-      var time = text.length * 0.03 + 0.9;
+      var time = text.length * 0.033 + 0. + text.split('\n').length * 0.5;
 
       var t = new PIXI.Text(text, fonts[idx]);
       t.y = y;
@@ -263,7 +257,8 @@ function init() {
       y += margins[idx];
       delay += time;
     };
-    ret.anim.add({ delay: delay });
+    ret.anim.add({ delay: delay + 3 });
+
 
     return ret;
   }
@@ -295,13 +290,13 @@ function init() {
       'to the user and gives user warm vibes.',
 
       'As a software designer I want to make it happen by\n'+
-      'using beatiful code and good programming practices.']);
+      'using beautiful code and good programming practices.']);
 
     var happy = new PIXI.Sprite(PIXI.Texture.fromImage('happy.png'));
     happy.position.x = 370;
     happy.position.y = 150;
     happy.scale.x = happy.scale.y = 0.3;
-    o.anim.add({obj: happy, delay: 3, from: { alpha:0}, to: { alpha: 1}});
+    o.anim.add({obj: happy, delay: 3.5, from: { alpha:0}, to: { alpha: 1}});
     
     o.scene.addChild(happy);
     
@@ -412,11 +407,11 @@ function init() {
       'you can easily measure users.',
 
       'Measuring users I love to do by conducting usability tests with few\n'+
-      'users. It is very intimitating to try to think what the user is\n'+
+      'users. It is very intimating to try to think what the user is\n'+
       'actually thinking and find the bottlenecks in the design.',
   
       'I have also done focus groups and online queries. And I can do\n'+
-      'statistical analysis for qvantitative user research.'
+      'statistical analysis for quantitative user research.'
     ]);
     o.anim.add({ obj: o.paper, set: { seed: 1111718486092 }});
     return o.anim;
@@ -443,7 +438,8 @@ function init() {
       "Let's continue with other buzzwords...",
 
       "methods - user centered design, interaction design, \n"+
-      "          protype based design, emotional design, value based design, visualizations",
+      "          prototype based design, emotional design, value based design,\n"+
+      "          visualizations, wireframes, use-cases",
 
       "web - rails, sinatra, tornado, plone, pybottle, scalatra, J2EE, xslt, nginx, varnish, jQuery",
 
@@ -476,7 +472,7 @@ function init() {
       'Why did I build a portfolio\nas a game app?',
 
       'Because of you are looking for top talent people and I want to pop\n'+
-      'out from the mass :-) Also I want to push my limits everytime I do\n'+
+      'out from the mass :-) Also I want to push my limits every time I do\n'+
       'something.',
     ]);
     o.anim.add({ obj: o.paper, set: { seed: 871 }});
@@ -489,12 +485,12 @@ function init() {
 
       'The background images, or unique background textures, are from\n'+
       'research project I was involved in my early career. I find them\n'+
-      'attractive and I found that Australian people like to see colourful things.',
+      'attractive and I found that Australian people like to see colorful things.',
 
       'I use pixi.js as a platform because it is just mind blowing\n'+
       'fast. And by using that I make a statement for the speed. I think\n'+
       'performance is important factor of everything that is being\n'+
-      'made. If the product is not peforming it is not really working in the\n'+
+      'made. If the product is not performing it is not really working in the\n'+
       'first place.',
 
       'I will do my own tools if needed or sometimes just for fun.',
@@ -531,51 +527,48 @@ function init() {
 
   var s = new Seq(null);
   s.add(s1);
-  s.add({ delay: 3 });
   s.add(s2);
-  s.add({ delay: 3 });
   s.add(s3);
-  s.add({ delay: 3 });
   s.add(s4);
-  s.add({ delay: 3 });
   s.add(s5);
-  s.add({ delay: 3 });
   //s.add(s6);
-  //s.add({ delay: 3 });
   s.add(s7);
-  s.add({ delay: 3 });
   s.add(s8);
-  s.add({ delay: 3 });
   s.add(s9);
-  s.add({ delay: 3 });
   s.add(s10);
-  s.add({ delay: 3 });
   s.add(s11);
-  s.add({ delay: 3 });
   s.add(s12);
-  s.add({ delay: 3 });
   s.add(s13);
-  s.add({ delay: 3 });
 
 
-	// create a renderer instance.
-	var renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight,{backgroundColor : 0xffffff, autoResize: true});
+  // create a renderer instance.
+  var renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight,{background: 0xffffffff, autoResize: true});
   // set the canvas width and height to fill the screen
-	renderer.view.style.display = "block";
+  renderer.view.style.display = "block";
   document.body.appendChild(renderer.view);
 
   var container = new PIXI.Container();
 
   var timer = new Timer(s);
 
-  var known_time = 0;
 
   renderer.old_render = renderer.render;
-  renderer.render = function(scene) {
-    // do adjustment to be responsive!!
+  renderer.render = function(stage) {
     var w = window.innerWidth;
     var h = window.innerHeight;
+
+    // set timeline
+    var timeline = stage.getChildAt(1);
+    timeline.position.y = h - 36;
+    if (!drag_state.dragging)
+      timeline.position.x = (w-31) * timer.real_curr()/timer.time;
+    else
+      timer.set_next_curr(timer.time * drag_state.x / (w-31));
+    
+
+    // do adjustment to be responsive!!
     // let's aim at 800x600 resolution
+    var scene = stage.getChildAt(0);
     var scale = 1;
     if (w < 800 || h < 600) {
       var orig = 800/600;
@@ -588,8 +581,9 @@ function init() {
     scene.position.x = (w - (800*scale))/2;
     scene.position.y = (h - (600*scale))/2;
     
-    renderer.old_render(scene);
+    renderer.old_render(stage);
   };
+
 
   function animate() {
 
@@ -597,11 +591,10 @@ function init() {
 
       s.render(renderer, timer);
 
-
-	    //renderer.render(container);
+      //renderer.render(container);
       //if (timer.curr < 0.2)
-	    requestAnimFrame(animate);
-	}
+      requestAnimFrame(animate);
+  }
   animate();
 
 
