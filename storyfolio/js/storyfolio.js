@@ -485,7 +485,7 @@ function init() {
 
       'The background images, or unique background textures, are from\n'+
       'research project I was involved in my early career. I find them\n'+
-      'attractive and I found that Australian people like to see colorful things.',
+      'attractive and I hope you too.',
 
       'I use pixi.js as a platform because it is just mind blowing\n'+
       'fast. And by using that I make a statement for the speed. I think\n'+
@@ -503,7 +503,7 @@ function init() {
   var s13 = (function(){
     o = texts([
      'I am looking for the opportunity..',
-     '...with my support team to jump into the kangaroo fields.'
+     '...with my support team.'
     ]);
     o.anim.add({ obj: o.paper, set: { seed: 125443547 }});
 
